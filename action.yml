@@ -118,6 +118,7 @@ runs:
 
         {
           printf 'value<<EOF\n'
+          printf 'image=docker.io/moby/buildkit:buildx-stable-1-rootless\n'
           printf 'namespace=arc-runners\n'
           printf 'replicas=1\n'
           printf 'rootless=true\n'

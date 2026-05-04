@@ -60,6 +60,7 @@ ghcr.io/byulmaru/my-app:release-<run-number>
 현재 기본값은 ARC 환경에서 Buildx Kubernetes driver를 바로 쓰기 위한 값으로 중앙화되어 있습니다.
 
 ```yaml
+buildkit-image: docker.io/moby/buildkit:buildx-stable-1-rootless
 platforms: linux/arm64
 node-selector: oci.oraclecloud.com/oke-is-preemptible=true
 tolerations: key=oci.oraclecloud.com/oke-is-preemptible,operator=Exists,effect=NoSchedule
@@ -108,10 +109,13 @@ Buildx Kubernetes driver에서 action 입력값으로 직접 제어하는 항목
 `namespace`, `replicas`, `serviceaccount`는 workflow 입력값으로 노출하지 않고 액션 내부에서 고정합니다.
 
 ```yaml
+image: docker.io/moby/buildkit:buildx-stable-1-rootless
 namespace: arc-runners
 replicas: 1
 serviceaccount: buildkit
 ```
+
+BuildKit image는 short name pull 정책에 걸리지 않도록 `docker.io/moby/buildkit:buildx-stable-1-rootless`로 fully-qualified하게 고정합니다.
 
 현재 composite action은 `node-selector`, `tolerations`, resource request/limit 기본값을 중앙화합니다. Workflow마다 반복해서 같은 BuildKit Pod 설정을 적지 않기 위한 목적입니다.
 
