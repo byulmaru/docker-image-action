@@ -1,0 +1,155 @@
+name: Build Docker image
+description: Build and optionally push a Docker image using Buildx Kubernetes driver.
+
+inputs:
+  image:
+    description: Image name without tag, for example ghcr.io/byulmaru/app.
+    required: true
+  tags:
+    description: Newline-separated docker/metadata-action tag rules.
+    required: false
+    default: type=sha
+  context:
+    description: Build context path.
+    required: false
+    default: .
+  file:
+    description: Dockerfile path.
+    required: false
+    default: Dockerfile
+  push:
+    description: Whether to push the image.
+    required: false
+    default: "true"
+  platforms:
+    description: Target platforms, for example linux/amd64 or linux/amd64,linux/arm64.
+    required: false
+    default: linux/arm64
+  registry:
+    description: Registry hostname for docker/login-action. Empty disables login.
+    required: false
+    default: ghcr.io
+  username:
+    description: Registry username.
+    required: false
+    default: ""
+  password:
+    description: Registry password or token.
+    required: false
+    default: ""
+  requests-cpu:
+    description: BuildKit Pod CPU request.
+    required: false
+    default: 800m
+  requests-memory:
+    description: BuildKit Pod memory request.
+    required: false
+    default: 2Gi
+  limits-cpu:
+    description: BuildKit Pod CPU limit.
+    required: false
+    default: "1"
+  limits-memory:
+    description: BuildKit Pod memory limit.
+    required: false
+    default: 2Gi
+  node-selector:
+    description: Optional Buildx Kubernetes nodeselector option, for example key=value,key2=value2.
+    required: false
+    default: oci.oraclecloud.com/oke-is-preemptible=true
+  tolerations:
+    description: Buildx Kubernetes tolerations option.
+    required: false
+    default: key=oci.oraclecloud.com/oke-is-preemptible,operator=Exists,effect=NoSchedule
+  build-args:
+    description: Newline-separated build arguments.
+    required: false
+    default: ""
+  labels:
+    description: Newline-separated docker/metadata-action label rules.
+    required: false
+    default: ""
+  target:
+    description: Optional build target.
+    required: false
+    default: ""
+outputs:
+  imageid:
+    description: Built image ID.
+    value: ${{ steps.build.outputs.imageid }}
+  digest:
+    description: Built image digest.
+    value: ${{ steps.build.outputs.digest }}
+  metadata:
+    description: Build result metadata.
+    value: ${{ steps.build.outputs.metadata }}
+
+runs:
+  using: composite
+  steps:
+    - name: Login to registry
+      if: ${{ inputs.registry != '' }}
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ inputs.username || github.actor }}
+        password: ${{ inputs.password || github.token }}
+
+    - name: Extract Docker metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ inputs.image }}
+        tags: ${{ inputs.tags }}
+        labels: ${{ inputs.labels }}
+
+    - name: Resolve driver options
+      id: driver-opts
+      shell: bash
+      env:
+        REQUESTS_CPU: ${{ inputs.requests-cpu }}
+        REQUESTS_MEMORY: ${{ inputs.requests-memory }}
+        LIMITS_CPU: ${{ inputs.limits-cpu }}
+        LIMITS_MEMORY: ${{ inputs.limits-memory }}
+        NODE_SELECTOR: ${{ inputs.node-selector }}
+        TOLERATIONS: ${{ inputs.tolerations }}
+      run: |
+        set -euo pipefail
+
+        {
+          printf 'value<<EOF\n'
+          printf 'namespace=arc-runners\n'
+          printf 'replicas=1\n'
+          printf 'rootless=true\n'
+          printf 'serviceaccount=buildkit\n'
+          printf 'requests.cpu=%s\n' "$REQUESTS_CPU"
+          printf 'requests.memory=%s\n' "$REQUESTS_MEMORY"
+          printf 'limits.cpu=%s\n' "$LIMITS_CPU"
+          printf 'limits.memory=%s\n' "$LIMITS_MEMORY"
+          if [ -n "$NODE_SELECTOR" ]; then
+            printf 'nodeselector=%s\n' "$NODE_SELECTOR"
+          fi
+          if [ -n "$TOLERATIONS" ]; then
+            printf '"tolerations=%s"\n' "$TOLERATIONS"
+          fi
+          printf 'EOF\n'
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Set up Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver: kubernetes
+        driver-opts: ${{ steps.driver-opts.outputs.value }}
+
+    - name: Build image
+      id: build
+      uses: docker/build-push-action@v6
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.file }}
+        push: ${{ inputs.push }}
+        platforms: ${{ inputs.platforms }}
+        tags: ${{ steps.meta.outputs.tags }}
+        build-args: ${{ inputs.build-args }}
+        labels: ${{ steps.meta.outputs.labels }}
+        target: ${{ inputs.target }}
