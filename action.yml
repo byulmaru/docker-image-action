@@ -40,19 +40,19 @@ inputs:
   requests-cpu:
     description: BuildKit Pod CPU request.
     required: false
-    default: 800m
+    default: "1"
   requests-memory:
     description: BuildKit Pod memory request.
     required: false
-    default: 2Gi
+    default: 4Gi
   limits-cpu:
     description: BuildKit Pod CPU limit.
     required: false
-    default: "1"
+    default: "2"
   limits-memory:
     description: BuildKit Pod memory limit.
     required: false
-    default: 2Gi
+    default: 4Gi
   node-selector:
     description: Optional Buildx Kubernetes nodeselector option, for example key=value,key2=value2.
     required: false
